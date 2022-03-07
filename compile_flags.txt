@@ -1,0 +1,8 @@
+-W
+all
+-W
+extra
+-W
+pedantic
+-I
+./include/
