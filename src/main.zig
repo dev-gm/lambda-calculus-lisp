@@ -22,7 +22,8 @@ const Expr = union(enum) {
     };
 
     pub fn fromStr(str: []const u8, allocator: *Allocator) ParseError!*Self {
-        return (try fromStrInternal(str, allocator)).expr;
+        const out = (try fromStrInternal(str, allocator)).expr;
+        return out;
     }
 
     const InternalFromStrRetType = struct {
@@ -44,10 +45,10 @@ const Expr = union(enum) {
                 expr.* = Self{ .list = try allocator.alloc(*Self, list_len) };
                 var current_index: usize = 1;
                 var i: usize = 0;
-                while (i < list_len) {
+                while (i < list_len and current_index < str.len) {
                     const result = try Self.fromStrInternal(str[current_index..], allocator);
                     expr.*.list[i] = result.expr;
-                    current_index = result.index;
+                    current_index += result.index;
                     while (charIsWhitespace(str[current_index]))
                         current_index += 1;
                     if (str[current_index] == ')') {
@@ -64,7 +65,10 @@ const Expr = union(enum) {
             '"' => parse: {
                 for (str[1..]) |char, i| {
                     if (char == '"') {
-                        expr.* = Self{ .atom = str[1..i] };
+                        var atom = try allocator.*.alloc(u8, i);
+                        for (str[1..i+1]) |atom_char, j|
+                            atom[j] = atom_char;
+                        expr.* = Self{ .atom = atom };
                         break :parse InternalFromStrRetType{
                             .expr = expr,
                             .index = i,
@@ -126,6 +130,7 @@ const Expr = union(enum) {
             } else if (char == '(') {
                 paren_depth = 1;
             } else if (char == ')') {
+                len += 1;
                 return len;
             }
             if (last_char_was_whitespace and !charIsWhitespace(char))
@@ -137,21 +142,26 @@ const Expr = union(enum) {
     pub fn toString(self: *const Self, allocator: *Allocator) Allocator.Error![]const u8 {
         const len = self.toStringLen();
         var out = try allocator.*.alloc(u8, len);
-        var index = len;
+        var index: usize = 0;
         self.toStringInner(out, &index);
         return out;
     }
 
     fn toStringInner(self: *const Self, out: []u8, index: *usize) void {
-        out[index.*] = '(';
-        index.* += 1;
         switch (self.*) {
             .list => |list| {
-                for (list) |child| {
-                    child.toStringInner(out[index.*..], index);
-                    out[index.*] = ' ';
-                    index.* += 1;
+                out[index.*] = '(';
+                index.* += 1;
+                if (list.len > 0) {
+                    list[0].toStringInner(out, index);
+                    for (list[1..]) |child| {
+                        out[index.*] = ' ';
+                        index.* += 1;
+                        child.toStringInner(out, index);
+                    }
                 }
+                out[index.*] = ')';
+                index.* += 1;
             },
             .atom => |atom| {
                 for (atom) |char| {
@@ -160,13 +170,16 @@ const Expr = union(enum) {
                 }
             },
         }
-        out[index.*] = ')';
-        index.* += 1;
     }
 
     fn toStringLen(self: *const Self) usize {
-        return 2 + switch (self.*) {
-            .list => |list| (list.len - 1) + self.toStringLen(),
+        return switch (self.*) {
+            .list => |list| len: {
+                var len: usize = 1;
+                for (list) |item|
+                    len += item.toStringLen() + 1;
+                break :len len;
+            },
             .atom => |atom| atom.len,
         };
     }
@@ -286,7 +299,7 @@ const State = struct {
                         var atom_temp = atom[0..];
                         while (atom_temp[0] == ' ' and atom_temp.len > 0)
                             atom_temp = atom_temp[1..];
-                        while (atom_temp[atom_temp.len] == ' ' and atom_temp.len > 0)
+                        while (atom_temp[atom_temp.len - 1] == ' ' and atom_temp.len > 0)
                             atom_temp = atom_temp[0..atom_temp.len];
                         if (eql(u8, atom, "print") and list.len >= 2) {
                             var val = Expr{ .list = list[1..] };
@@ -331,7 +344,7 @@ pub fn main() anyerror!void {
                 .add_def => |def| {
                     _ = try state.defs.getOrPutValue(def.name, def.subst);
                 },
-                .print => |val| try stdout_writer.print("{s}", .{val}),
+                .print => |val| try stdout_writer.print("{s}\n", .{val}),
             }
         }
     }
