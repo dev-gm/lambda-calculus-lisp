@@ -196,19 +196,6 @@ const Expr = union(enum) {
             }
         }
     }
-
-    pub fn deinit(self: *const Self, allocator: Allocator) void {
-        switch (self.*) {
-            .atom => |*atom| allocator.free(atom.*),
-            .list => |list| {
-                for (list) |item| {
-                    item.deinit(allocator);
-                    allocator.destroy(item);
-                }
-                allocator.free(list);
-            },
-        }
-    }
 };
 
 const Def = struct {
@@ -337,7 +324,6 @@ pub fn main() anyerror!void {
         const buffer = (try stdin_reader.readUntilDelimiterOrEofAlloc(allocator, '\n', (1 << 64) - 1)).?;
         defer allocator.free(buffer);
         var expr = try Expr.fromStr(buffer, &allocator);
-        defer expr.deinit(allocator);
         for (try state.eval(expr)) |effect| {
             switch (effect) {
                 .add_def => |def| {
