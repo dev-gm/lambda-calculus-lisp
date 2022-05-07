@@ -198,17 +198,13 @@ const Expr = union(enum) {
     }
 };
 
-const Def = struct {
-    const Self = @This();
-
-    name: []const u8,
-    subst: Expr,
-};
-
 const Effect = union(enum) {
     const Self = @This();
 
-    add_def: Def,
+    add_def: struct {
+        name: []const u8,
+        subst: Expr,
+    },
     print: []const u8,
 };
 
