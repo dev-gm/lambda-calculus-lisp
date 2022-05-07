@@ -71,7 +71,7 @@ const Expr = union(enum) {
                         expr.* = Self{ .atom = atom };
                         break :parse InternalFromStrRetType{
                             .expr = expr,
-                            .index = i,
+                            .index = i+2,
                         };
                     }
                 }
@@ -121,7 +121,6 @@ const Expr = union(enum) {
                 }
             } else if (in_quotes and char == '"') {
                 in_quotes = false;
-                len += 1;
             } else if (char == '"') {
                 in_quotes = true;
             } else if (charIsWhitespace(char) and !last_char_was_whitespace) {
