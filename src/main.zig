@@ -22,8 +22,7 @@ const Expr = union(enum) {
     };
 
     pub fn fromStr(str: []const u8, allocator: *Allocator) ParseError!*Self {
-        const out = (try fromStrInternal(str, allocator)).expr;
-        return out;
+        return (try fromStrInternal(str, allocator)).expr;
     }
 
     const InternalFromStrRetType = struct {
